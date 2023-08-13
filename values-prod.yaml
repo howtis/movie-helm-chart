@@ -1,0 +1,26 @@
+environment: prod
+datasource:
+  url: movie-postgres-prod.clo8ifqlequc.ap-northeast-2.rds.amazonaws.com
+  port: 5432
+
+# Spring Boot Backend Application
+# https://github.com/howtis/movie-backend
+backend:
+  image:
+    repository: ghcr.io/howtis/movie-backend-prod
+    tag: master
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+    targetPort: 8080
+
+# Vue.js Frontend Application
+# https://github.com/howtis/movie-frontend
+frontend:
+  image:
+    repository: ghcr.io/howtis/movie-frontend-prod
+    tag: master
+    pullPolicy: IfNotPresent
+  service:
+    port: 8081
+    targetPort: 80

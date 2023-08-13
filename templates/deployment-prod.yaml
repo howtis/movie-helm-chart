@@ -1,0 +1,64 @@
+{{- if eq .Values.environment "prod" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        date: "{{ now | unixEpoch }}"
+    spec:
+      containers:
+        - name: backend
+          image: {{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.service.targetPort }}
+          env:
+            - name: datasource_url
+              value: jdbc:postgresql://{{ .Values.datasource.url }}:{{ .Values.datasource.port }}/postgres
+            - name: datasource_username
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-prod-username
+            - name: datasource_password
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: postgres-prod-password
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        date: "{{ now | unixEpoch }}"
+    spec:
+      containers:
+        - name: frontend
+          image: {{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.service.targetPort }}
+{{- end }}
