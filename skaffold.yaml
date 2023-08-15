@@ -1,0 +1,37 @@
+apiVersion: skaffold/v4beta4
+kind: Config
+metadata:
+    name: movie-project
+build:
+    local:
+      concurrency: 0
+    artifacts:
+      - image: movie-backend
+        context: ../movie-backend
+      - image: movie-frontend
+        context: ../movie-frontend
+        sync:
+          infer:
+            - "*.js"
+            - "*.html"
+            - "*.vue"
+            - "**/*.vue"
+            - "**/*.js"
+            - "**/*~"
+
+deploy:
+  helm:
+    releases:
+      - name: movie-project
+        chartPath: .
+        valuesFiles: [values-dev.yaml]
+
+portForward:
+  - resourceType: service
+    resourceName: backend
+    port: 8080
+    localPort: 8080
+  - resourceType: service
+    resourceName: frontend
+    port: 80
+    localPort: 8081
