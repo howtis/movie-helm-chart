@@ -1,0 +1,112 @@
+name: deploy to gcp cluster
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Check RDS instance status
+        id: check_status
+        run: |
+          status=$(aws rds describe-db-instances --db-instance-identifier movie-postgres-prod --query "DBInstances[0].DBInstanceStatus" --output text)
+          echo "RDS Instance Status: $status"
+          echo "::set-output name=status::$status"
+
+      - name: Start RDS instance if stopped
+        if: steps.check_status.outputs.status == 'stopped'
+        run: |
+          aws rds start-db-instance --db-instance-identifier movie-postgres-prod
+          echo "RDS Instance started"
+
+      - name: Check if GCP cluster exists
+        id: check_cluster
+        run: |
+          cluster_name="movie-cluster"
+          if gcloud container clusters describe $cluster_name --zone=asia-northeast3 > /dev/null 2>&1; then
+            echo "::set-output name=cluster_exists::true"
+          else
+            echo "::set-output name=cluster_exists::false"
+          fi
+      
+      - name: Create GCP cluster if not exist
+        if: steps.check_cluster.outputs.cluster_exists == 'false'
+        run: |
+          gcloud container clusters create-auto movie-cluster --region asia-northeast3 --project=movie-0 --async
+          echo "GCP cluster creation initiated"
+      
+      - name: Wait for GCP cluster creation
+        if: steps.check_cluster.outputs.cluster_exists == 'false'
+        run: |
+          cluster_name="movie-cluster"
+          while true; do
+            status=$(gcloud container clusters describe $cluster_name --zone=asia-northeast3 --format="value(status)")
+            if [[ "$status" == "RUNNING" ]]; then
+              echo "GCP cluster creation completed"
+              break
+            fi
+            echo "Waiting for GCP cluster creation..."
+            sleep 60
+          done
+
+      - name: Get GKE Credentials
+        id: get-credentials
+        uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: movie-cluster
+          location: asia-northeast3
+
+      - name: Check if database-credential secret exists
+        id: check_secret
+        run: echo "::set-output name=exists::$(kubectl get secret database-credentials -o json | jq -e '.metadata.name == "database-credentials"' || echo false)"
+  
+      - name: Create database-credential secret if not exists
+        if: steps.check_secret.outputs.exists == 'false'
+        run: kubectl create secret generic database-credentials --from-literal=postgres-prod-username=${{ secrets.POSTGRES_PROD_USERNAME }} --from-literal=postgres-prod-password=${{ secrets.POSTGRES_PROD_PASSWORD }}
+
+      - name: Check if Helm release exists
+        id: check_helm_release
+        run: |
+          releases=$(helm list -q)
+          if echo "$releases" | grep -q "movie"; then
+            echo "::set-output name=helm_release_exists::true"
+          else
+            echo "::set-output name=helm_release_exists::false"
+          fi
+
+      - name: Install or upgrade Helm chart
+        run: |
+          release_name="movie"
+          if [ "${{ steps.check_helm_release.outputs.helm_release_exists }}" == 'false' ]; then
+            helm install $release_name . -f values-prod.yaml
+          else
+            helm upgrade $release_name . -f values-prod.yaml
+          fi
+
+
+
+          
