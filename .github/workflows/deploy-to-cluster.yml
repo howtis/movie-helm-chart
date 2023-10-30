@@ -31,40 +31,38 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Check RDS instance status
-        id: check_status
+        id: check_rds_status
         run: |
           status=$(aws rds describe-db-instances --db-instance-identifier movie-postgres-prod --query "DBInstances[0].DBInstanceStatus" --output text)
           echo "RDS Instance Status: $status"
-          echo "::set-output name=status::$status"
+          echo "rds_status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Start RDS instance if stopped
-        if: steps.check_status.outputs.status == 'stopped'
+        if: steps.check_rds_status.outputs.rds_status == 'stopped'
         run: |
           aws rds start-db-instance --db-instance-identifier movie-postgres-prod
           echo "RDS Instance started"
 
       - name: Check if GCP cluster exists
-        id: check_cluster
+        id: check_cluster_exists
         run: |
-          cluster_name="movie-cluster"
-          if gcloud container clusters describe $cluster_name --zone=asia-northeast3 > /dev/null 2>&1; then
-            echo "::set-output name=cluster_exists::true"
+          if gcloud container clusters describe movie-cluster --zone=asia-northeast3 > /dev/null 2>&1; then
+            echo "cluster_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::set-output name=cluster_exists::false"
+            echo "cluster_exists=false" >> "$GITHUB_OUTPUT"
           fi
       
       - name: Create GCP cluster if not exist
-        if: steps.check_cluster.outputs.cluster_exists == 'false'
+        if: steps.check_cluster_exists.outputs.cluster_exists == 'false'
         run: |
           gcloud container clusters create-auto movie-cluster --region asia-northeast3 --project=movie-0 --async
           echo "GCP cluster creation initiated"
       
       - name: Wait for GCP cluster creation
-        if: steps.check_cluster.outputs.cluster_exists == 'false'
+        if: steps.check_cluster_exists.outputs.cluster_exists == 'false'
         run: |
-          cluster_name="movie-cluster"
           while true; do
-            status=$(gcloud container clusters describe $cluster_name --zone=asia-northeast3 --format="value(status)")
+            status=$(gcloud container clusters describe movie-cluster --zone=asia-northeast3 --format="value(status)")
             if [[ "$status" == "RUNNING" ]]; then
               echo "GCP cluster creation completed"
               break
@@ -74,37 +72,45 @@ jobs:
           done
 
       - name: Get GKE Credentials
-        id: get-credentials
         uses: google-github-actions/get-gke-credentials@v1
         with:
           cluster_name: movie-cluster
           location: asia-northeast3
 
-      - name: Check if database-credential secret exists
-        id: check_secret
-        run: echo "::set-output name=exists::$(kubectl get secret database-credentials -o json | jq -e '.metadata.name == "database-credentials"' || echo false)"
+      - name: Check if credential secret exists
+        id: check_credential_secret
+        run: |
+          if kubectl get secret credentials; then
+            echo "secret_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "secret_exists=false" >> "$GITHUB_OUTPUT"
+          fi
   
-      - name: Create database-credential secret if not exists
-        if: steps.check_secret.outputs.exists == 'false'
-        run: kubectl create secret generic database-credentials --from-literal=postgres-prod-username=${{ secrets.POSTGRES_PROD_USERNAME }} --from-literal=postgres-prod-password=${{ secrets.POSTGRES_PROD_PASSWORD }}
+      - name: Create credential secret if not exists
+        if: steps.check_credential_secret.outputs.secret_exists == 'false'
+        run: >
+          kubectl create secret generic credentials 
+          --from-literal=postgres-prod-username=${{ secrets.POSTGRES_PROD_USERNAME }} 
+          --from-literal=postgres-prod-password=${{ secrets.POSTGRES_PROD_PASSWORD }} 
+          --from-literal=tmdb-api-key=${{ secrets.TMDB_API_KEY }} 
+          --from-literal=tmdb-api-access-token=${{ secrets.TMDB_API_ACCESS_TOKEN }} 
 
       - name: Check if Helm release exists
         id: check_helm_release
         run: |
           releases=$(helm list -q)
           if echo "$releases" | grep -q "movie"; then
-            echo "::set-output name=helm_release_exists::true"
+            echo "release_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=helm_release_exists::false"
+            echo "release_exists=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Install or upgrade Helm chart
         run: |
-          release_name="movie"
-          if [ "${{ steps.check_helm_release.outputs.helm_release_exists }}" == 'false' ]; then
-            helm install $release_name . -f values-prod.yaml
+          if [ ${{ steps.check_helm_release.outputs.release_exists }} == 'false' ]; then
+            helm install movie . -f values-prod.yaml
           else
-            helm upgrade $release_name . -f values-prod.yaml
+            helm upgrade movie . -f values-prod.yaml
           fi
 
 
