@@ -23,12 +23,16 @@ spec:
           ports:
             - containerPort: {{ .Values.backend.service.targetPort }}
           env:
-            - name: datasource_url
+            - name: database_url
               value: jdbc:postgresql://{{ .Values.datasource.url }}:{{ .Values.datasource.port }}/postgres
-            - name: datasource_username
+            - name: database_username
               value: {{ .Values.datasource.username }}
-            - name: datasource_password
+            - name: database_password
               value: {{ .Values.datasource.password }}
+            - name: tmdb_api_key
+              value: {{ .Values.tmdb.apiKey }}
+            - name: tmdb_api_access_token
+              value: {{ .Values.tmdb.apiAccessToken }}
 
 ---
 
