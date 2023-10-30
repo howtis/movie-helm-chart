@@ -28,10 +28,6 @@ deploy:
 
 portForward:
   - resourceType: service
-    resourceName: backend
-    port: 8080
-    localPort: 8080
-  - resourceType: service
     resourceName: frontend
     port: 80
-    localPort: 8081
+    localPort: 3000

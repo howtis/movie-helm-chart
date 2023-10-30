@@ -22,5 +22,5 @@ frontend:
     tag: master
     pullPolicy: IfNotPresent
   service:
-    port: 8081
+    port: 80
     targetPort: 80
