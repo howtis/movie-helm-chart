@@ -4,7 +4,9 @@ kind: Ingress
 metadata:
   name: ingress
   annotations:
-    kubernetes.io/ingress.global-static-ip-name: "movie-project-ip"
+    networking.gke.io/v1beta1.FrontendConfig: "frontend-config"
+    kubernetes.io/ingress.global-static-ip-name: "movie-project-ip" # https://console.cloud.google.com/networking/addresses/
+    networking.gke.io/managed-certificates: "movie-cert" # https://console.cloud.google.com/security/ccm/
 spec:
   defaultBackend:
     service:

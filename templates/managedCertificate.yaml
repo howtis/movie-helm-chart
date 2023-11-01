@@ -1,0 +1,9 @@
+{{- if eq .Values.environment "prod" }}
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: movie-cert
+spec:
+  domains:
+    - p01076322603.site
+{{- end }}
