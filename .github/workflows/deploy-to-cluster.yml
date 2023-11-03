@@ -94,6 +94,7 @@ jobs:
           --from-literal=postgres-prod-password=${{ secrets.POSTGRES_PROD_PASSWORD }} 
           --from-literal=tmdb-api-key=${{ secrets.TMDB_API_KEY }} 
           --from-literal=tmdb-api-access-token=${{ secrets.TMDB_API_ACCESS_TOKEN }} 
+          --from-literal=recaptcha-secretkey=${{ secrets.RECAPTCHA_SECRETKEY }}
 
       - name: Check if Helm release exists
         id: check_helm_release

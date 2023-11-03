@@ -45,6 +45,11 @@ spec:
                 secretKeyRef:
                   name: credentials
                   key: tmdb-api-access-token
+            - name: recaptcha_secretkey
+              valueFrom:
+                secretKeyRef:
+                  name: credentials
+                  key: recaptcha-secretkey
 
 ---
 

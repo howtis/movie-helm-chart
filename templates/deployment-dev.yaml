@@ -33,6 +33,8 @@ spec:
               value: {{ .Values.tmdb.apiKey }}
             - name: tmdb_api_access_token
               value: {{ .Values.tmdb.apiAccessToken }}
+            - name: recaptcha_secretkey
+              value: {{ .Values.recaptcha.secretkey }}
 
 ---
 
